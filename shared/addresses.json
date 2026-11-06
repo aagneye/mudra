@@ -1,15 +1,16 @@
 {
-  "_note": "Person 1 fills this after deploying. chainId 31337 = local Anvil.",
+  "_note": "Abhimanyu fills this after deploying. 31337 = local Anvil, 4801 = World Chain Sepolia.",
   "31337": {
     "usdc": "",
     "poseRegistry": "",
     "challengePool": ""
   },
-  "arcTestnet": {
-    "chainId": null,
-    "usdc": "",
+  "4801": {
+    "usdc": "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88",
     "poseRegistry": "",
     "challengePool": "",
-    "explorer": ""
+    "relayer": "",
+    "oracle": "",
+    "explorer": "https://worldchain-sepolia.explorer.alchemy.com"
   }
 }
