@@ -1,186 +1,169 @@
-# Mudra: build plan for ETHGlobal
+# Mudra
 
 > **Trends make stars rich. Mudra pays the person who started it.**
 
-## 1. The idea in one paragraph
+Mudra (Sanskrit for a gesture or pose in dance) is a **World Mini App** for pose challenges. A creator posts a signature pose. Anyone can recreate it live with their phone camera, AI scores how closely they matched it, and verified humans vote. A brand or film studio funds the challenge in USDC, and a smart contract on **World Chain** pays the original creator a royalty for every valid recreation and pays the top recreators.
 
-A creator posts a signature pose. Anyone can recreate it live in the app camera. AI scores how closely the recreation matches. Verified humans (World ID) vote, one vote per person per challenge. A brand or studio funds a challenge pool in USDC on Arc. When the challenge ends, a smart contract splits the pool automatically: a royalty to the original creator for every valid recreation, and the rest to the top recreators.
+| Doc | For |
+|---|---|
+| This file | The idea, the problems and fixes, the payout rules, the demo |
+| [docs/WORLD_MINI_APP.md](docs/WORLD_MINI_APP.md) | How a World Mini App is built and how Mudra uses it |
+| [docs/abhimanyu-contracts.md](docs/abhimanyu-contracts.md) | Abhimanyu: smart contracts |
+| [docs/aagneye-ai.md](docs/aagneye-ai.md) | Aagneye: pose AI and 0G |
+| [docs/atul-app.md](docs/atul-app.md) | Atul: Mini App, World ID, relayer, demo |
+| [shared/API.md](shared/API.md) | The interfaces between the three parts |
 
-**Why blockchain (say this in the pitch):** a public, timestamped record of who started a pose, and automatic payouts to thousands of creators without anyone holding the money.
+---
 
-## 2. Scope decisions (to finish in time)
+## 1. The problem
+
+In India, film hook-step challenges spread across Reels and Shorts. The star or choreographer who created the move gets fame, but the money from those challenges goes to platforms and to whoever runs the brand campaign. Smaller creators who start a trend usually get nothing, and often not even credit.
+
+## 2. The solution
+
+1. **Create:** a creator captures a signature pose in the app and proves they're a unique human with World ID. Mudra records it onchain: who, when, and whether it's an original or a remix of an earlier pose.
+2. **Sponsor:** a brand or studio picks a registered pose, deposits a USDC prize pool, and sets the rules (royalty per valid entry, creator cap, deadline).
+3. **Recreate:** anyone opens Mudra in World App, sees the original next to their live camera with a skeleton overlay, and captures their attempt. AI scores the match (e.g. 87%) and gives tips ("raise your left arm higher").
+4. **Vote:** verified humans vote for the best recreation, one vote per human per challenge.
+5. **Pay out:** after the deadline, the contract pays the creator a royalty for every valid recreation, and splits the rest among the top 3.
+
+**Why blockchain (one line for the pitch):** a public, timestamped record of who started a pose, and automatic payouts to thousands of creators without anyone holding the money.
+
+**Why a World Mini App:** every user already has a wallet, a username and World ID inside World App. No sign-up, no seed phrases, no gas. Judges scan a QR code and they're in.
+
+## 3. Scope (so we finish)
 
 | Decision | Why |
 |---|---|
-| **Static pose, not a full dance move** | Comparing one pose frame is reliable and fast. A move is 3 keyframes at most, as a stretch goal. |
-| **One challenge = one pose + one sponsor pool** | One flow, end to end. No feeds, follows or profiles beyond the minimum. |
-| **Web app (Next.js), mobile browser** | Judges can scan a QR code at the booth and try it on their phone. |
-| **Store keypoints + a thumbnail, not video** | Smaller data, easier privacy story, and enough to score and display. |
-| **No new token** | Sponsors pay in USDC. |
+| Static pose, not a full dance move | One frame is reliable and fast to compare. A 3-keyframe move is a stretch goal. |
+| One challenge = one pose + one pool | One flow, end to end. No feeds, follows or profiles beyond usernames. |
+| Store keypoints + a small thumbnail, not video | Less data, easier privacy, enough to score and display. |
+| No new token | Sponsors pay in USDC. A new token has no value unless someone pays into it. |
+| Players never send transactions | Our relayer sends them after checking World ID. Players pay no gas and need no USDC to play. |
+| Sponsors use a normal desktop page | Brands aren't World App users. |
+| World Chain Sepolia for the hackathon | Free testnet funds, same chain Mini Apps use. |
 
-## 3. Problems and how we solve them
+## 4. Problems and how we solve them
 
 **1. You can't legally own a pose.**
-Mudra records *attribution* ("first verified human to post this pose, at this time"), not ownership. The royalty comes from sponsor pools, not from a legal claim. No NFT.
+Mudra records *attribution* ("first verified human to post this pose, at this time"), not ownership. No NFT. The royalty comes from sponsor pools, not from a legal claim.
 
-**2. Someone claims a famous pose before the real originator does.**
-- Only World ID verified humans can register an original.
-- When a pose is registered, its keypoints are compared to every existing pose. If similarity is above a threshold (e.g. 0.90), it is recorded as a **remix** with a pointer to the parent, not as a new original.
-- **The key fix:** royalties are only paid inside sponsored challenges, and the **sponsor picks which registered pose the challenge is for**. A studio running a hook-step challenge picks the real choreographer's entry, so a squatter earns nothing. The onchain record is evidence; the sponsor is the one who decides.
-- For the demo, use teammates' poses only, no celebrities.
+**2. Someone claims a famous pose before the real originator.**
+- Only World ID verified humans can register a pose.
+- Each new pose is compared with every registered pose. At 90% similarity or more, it's recorded as a **remix** pointing to the earlier pose.
+- **The main fix:** royalties are only paid inside sponsored challenges, and **the sponsor chooses which registered pose the challenge is for**. A studio running a hook-step challenge picks the real choreographer's entry, so a squatter earns nothing. The onchain record is evidence; the sponsor decides.
+- In the demo, use teammates' poses, never real celebrities.
 
 **3. Matching poses accurately.**
-- MediaPipe Pose runs in the browser and gives 33 body keypoints.
+- MediaPipe Pose runs in the browser and finds 33 body points.
 - Normalize: center on the hips and scale by torso length, so distance from the camera and body size don't matter.
-- Compare **joint angles** (elbows, shoulders, hips, knees, about 10 angles) instead of raw positions. Angles don't change with position or scale. Score = weighted average angle difference, mapped to 0-100%.
-- Then a 0G-hosted model gets both images and keypoints, gives the final verdict and feedback ("raise your left arm higher").
-- Mirror check: also score the left/right flipped version and keep the better score, because front cameras mirror.
+- Compare about 10 **joint angles** (elbows, shoulders, hips, knees), which don't change with position or size. Map the weighted difference to 0-100%.
+- Front cameras mirror the image, so also score the flipped pose and keep the better score.
+- A 0G-hosted model then looks at both images and the points, gives the final score, feedback and a moderation flag.
 
 **4. Bots and fake votes.**
-- World ID with `action = "vote-<challengeId>"`. The nullifier is the same every time one human proves for that action, so **one human gets one vote per challenge**. This solves both bots and the "cap votes per voter" problem.
-- The contract stores used nullifiers and rejects a second vote, which is the failure path in the demo.
-- Only entries with an AI score of at least 60% can receive votes.
-- Final rank = 40% AI score + 60% vote share, so a group of friends voting together can't push a bad recreation to the top.
+- Voting needs World ID with the action `vote-<challengeId>`. One human always gets the same nullifier for that action, so **one human gets one vote per challenge**. This handles both bots and "cap votes per voter".
+- The contract stores used nullifiers and rejects a second vote. This is the failure path in the demo.
+- Only entries with an AI score of 60% or more can get votes.
+- Final rank = 40% AI score + 60% vote share, so a group of friends can't push a bad recreation to the top.
 
-**5. The creator could spam fake recreations to farm the per-recreation royalty.**
-This was a hidden problem in the earlier version. Fix: **submitting an entry also needs World ID** (`action = "enter-<challengeId>"`), one entry per human per challenge, and only entries scoring at least 60% count as valid. The creator's royalty is capped at a share of the pool (e.g. 30%).
+**5. The creator could farm royalties with fake recreations.**
+Entering also needs World ID (`enter-<challengeId>`): one entry per human per challenge. Only entries scoring 60% or more count, and the creator's royalty is capped at a share of the pool (e.g. 30%).
 
 **6. Where the money comes from.**
-Brands and studios fund challenges from the marketing budget they already spend on influencers. The sponsor sets the rules when creating the challenge: pool size, royalty per valid entry, creator cap and deadline. The money sits in escrow in the contract, not with us.
+Brands and studios fund challenges from the marketing budget they already spend on influencer campaigns. The money sits in the contract, not with us. **The contract has no admin withdraw** (this is also a World Mini App rule). If a challenge ends with no valid entries, only the sponsor can take their own deposit back.
 
 **7. Stolen or AI-generated videos.**
-- Capture only through the in-app camera, no gallery upload.
-- Liveness prompt: the app shows a random countdown and a random instruction ("hold the pose, then raise your right hand") that must appear in the captured frames. A pre-recorded clip won't match a prompt it didn't know.
-- World ID ties the entry to a real, unique human.
+- Capture only through the in-app camera, no gallery uploads.
+- Liveness prompt: a random countdown and a random instruction ("hold the pose, then raise your right hand") that must show up in the capture. A pre-recorded clip can't know the prompt.
+- World ID ties each entry to a real, unique human.
 
 **8. Inappropriate content and minors.**
-- The 0G model also returns a moderation flag. Flagged entries are hidden and held for review, never shown publicly.
-- Be honest with judges: World ID proves humanness, not age. Sponsors can require age verification as a later step.
+- The 0G model returns a moderation flag. Flagged entries are hidden and held for review.
+- Be honest with judges: World ID proves you're a unique human, not your age. Age checks are future work.
 
 **9. Who do we trust for the AI score?**
-The backend calls 0G, signs the result and posts the score onchain. For the hackathon, the backend is a trusted oracle, and we store the hash of the 0G response so anyone can check it. Say "verifiable inference" as the next step.
+For the hackathon, our AI server is a trusted oracle: it posts the score onchain with a hash of the 0G response so anyone can check it later. Verifiable AI results are the next step.
 
-## 4. Payout math (contract logic)
+**10. Is this gambling?**
+No. World's guidelines don't allow chance-based prizes, and Mudra has no randomness: winners are decided by match score and human votes. Call it a "skill-based challenge".
+
+## 5. Payout rules
 
 ```
-validEntries   = entries with aiScore >= 60
-creatorPayout  = min(validEntries * royaltyPerEntry, pool * creatorCapBps / 10000)
-rest           = pool - creatorPayout
-finalScore     = 0.4 * aiScore + 0.6 * (votes / maxVotes * 100)
+validEntries   = entries with aiScore >= 60 and not flagged
+creatorPayout  = min(validEntries × royaltyPerEntry, pool × creatorCapBps / 10000)
+rest           = pool − creatorPayout
+finalScore     = 0.4 × aiScore + 0.6 × (votes / maxVotes × 100)
 top 3 by finalScore get rest split 50% / 30% / 20%
+fewer than 3 valid entries → the unused share goes to rank 1
+no valid entries → creator gets nothing, sponsor can reclaim the pool
 ```
 
-Anyone can call `finalize(challengeId)` after the deadline.
+Anyone can call `finalize(challengeId)` after the deadline. Example: a 100 USDC pool, 2 USDC per entry, 30% cap, 12 valid entries → creator gets 24 USDC, winners split 76 USDC (38 / 22.80 / 15.20).
 
-## 5. Repo layout (each person owns one folder, so no merge conflicts)
+## 6. Architecture
 
 ```
-MUDRA/
-├── PLAN.md
-├── shared/            # interfaces everyone agrees on in hour 1 (types, ABI, API spec)
-├── contracts/         # Person 1
-├── ai/                # Person 2 (scoring library + scoring/moderation API)
-└── app/               # Person 3 (Next.js frontend + World ID + wallet)
+ Phone: World App                                     Desktop browser
+ ┌──────────────────────────────┐                    ┌──────────────────┐
+ │ Mudra Mini App (Next.js)     │                    │ /sponsor (wagmi) │
+ │  MiniKit walletAuth          │                    └────────┬─────────┘
+ │  IDKit World ID              │                             │ approve + createChallenge
+ │  Camera + MediaPipe          │                             │
+ └──────┬───────────────┬───────┘                             │
+        │               │                                     │
+        │ /api/relay    │ /score, /check-original             │
+        ▼               ▼                                     ▼
+ ┌──────────────┐  ┌───────────────────────┐   ┌──────────────────────────┐
+ │ Relayer      │  │ AI server (Aagneye)   │   │ World Chain Sepolia      │
+ │ (Atul)       │  │  joint-angle score    │──►│  PoseRegistry            │
+ │  verify      │  │  0G model: score,     │   │  ChallengePool + USDC    │
+ │  World ID    │──┼─►feedback, moderation │   │  (Abhimanyu)             │
+ │  send tx     │──┼───────────────────────┼──►│                          │
+ └──────────────┘  └───────────────────────┘   └──────────────────────────┘
 ```
 
-## 6. The split
+## 7. Team
 
-### Person 1: Smart contracts and payouts (Arc)
-Owns `contracts/`. Foundry, Solidity, Arc testnet, USDC.
+| Person | Owns | Folder | Branch | Guide |
+|---|---|---|---|---|
+| **Abhimanyu** | Smart contracts on World Chain: pose registry, USDC pools, nullifier checks, payouts, deploy | `contracts/` | `feature/contracts` | [abhimanyu-contracts.md](docs/abhimanyu-contracts.md) |
+| **Aagneye** | Pose AI: MediaPipe, similarity scoring, 0G scoring/feedback/moderation, remix check, oracle | `ai/` | `feature/ai` | [aagneye-ai.md](docs/aagneye-ai.md) |
+| **Atul** | World Mini App: screens, camera, MiniKit, World ID, relayer, sponsor page, demo and pitch | `app/` | `feature/app` | [atul-app.md](docs/atul-app.md) |
 
-**Builds**
-- `PoseRegistry.sol`: `registerPose(poseHash, parentId, metadataURI)`, stores creator, timestamp and parent (remix pointer). Only the backend relayer can call it, after a World ID check.
-- `ChallengePool.sol`:
-  - `createChallenge(poseId, amount, royaltyPerEntry, creatorCapBps, deadline)`: sponsor deposits USDC (approve + transferFrom).
-  - `submitEntry(challengeId, entrant, nullifierHash, captureHash)`: rejects a reused nullifier.
-  - `postScore(entryId, score, responseHash)`: oracle only.
-  - `vote(challengeId, entryId, nullifierHash)`: rejects a reused nullifier, rejects entries under 60.
-  - `finalize(challengeId)`: the payout math above.
-  - Events for everything, so the app can show the onchain trail.
-- Relayer: a small script or API route that sends transactions from the backend wallet, so users don't need gas.
-- Deploy script, a seeded demo challenge, and the ABI exported to `shared/abi/`.
-
-**Done when:** the full flow runs in a Foundry test (create, 4 entries, scores, votes, a double vote reverts, finalize pays the correct amounts), deployed on Arc testnet, with addresses in `shared/addresses.json`.
-
-### Person 2: AI pose engine (MediaPipe + 0G)
-Owns `ai/`.
-
-**Builds**
-- `ai/pose/`: a small TypeScript library the app imports:
-  - `extractKeypoints(videoFrame) -> Keypoints` (MediaPipe Pose, in the browser)
-  - `normalize(kp)`, `jointAngles(kp)`
-  - `similarity(a, b) -> 0..100` (with the mirror check)
-- `ai/server/`: an API (Node/Express or Next.js API routes):
-  - `POST /score`: `{ originalImage, originalKp, attemptImage, attemptKp }` → local similarity, then 0G model → `{ score, feedback, flagged, responseHash }`
-  - `POST /check-original`: compares new pose keypoints to all registered poses → `{ isRemix, parentId, similarity }`
-  - `POST /moderate` (can be combined with `/score`)
-- 0G Compute integration: model choice, prompt, and a fallback to the local similarity score if 0G is slow (the demo must never wait on the network).
-
-**Done when:** given two photos of the same pose it returns about 85-95, given different poses under 50, mirrored poses score the same, and `/score` returns feedback text from 0G in under ~5 seconds.
-
-### Person 3: App, World ID and demo flow
-Owns `app/`. Next.js, Tailwind, wagmi/viem, World IDKit.
-
-**Builds**
-- Screens:
-  1. **Home**: list of active challenges (pool size, deadline, original creator).
-  2. **Create pose**: camera, liveness countdown, capture, World ID, register (shows "Original" or "Remix of …").
-  3. **Sponsor**: pick a registered pose, set the pool and rules, deposit USDC.
-  4. **Challenge**: the original pose next to a live camera with a skeleton overlay and a live match % (uses Person 2's library), then submit.
-  5. **Vote**: grid of entries with scores, vote with World ID, and a clear "You already voted" error.
-  6. **Results**: payouts with links to the transactions on the Arc explorer.
-- World IDKit integration and backend verification of proofs (the cloud verify API), then pass the nullifier to the relayer.
-- QR code for judges to open the app on their phones.
-- The 90-second demo script and the pitch slides.
-
-**Done when:** a new person can do the whole demo on a phone without help.
-
-## 7. Shared contract between the three (agree on this in the first hour)
-
-Put these in `shared/` before anyone writes real code, and **each person builds against mocks** until the others are ready.
-
-```ts
-// shared/types.ts
-type Keypoint  = { x: number; y: number; z: number; visibility: number };
-type Keypoints = Keypoint[];               // 33 MediaPipe landmarks
-
-type Pose      = { id: number; creator: string; parentId: number | null;
-                   createdAt: number; thumbnailUrl: string; keypoints: Keypoints };
-type Challenge = { id: number; poseId: number; sponsor: string; pool: string;   // USDC, 6 decimals
-                   royaltyPerEntry: string; creatorCapBps: number; deadline: number;
-                   finalized: boolean };
-type Entry     = { id: number; challengeId: number; entrant: string;
-                   score: number | null; votes: number; thumbnailUrl: string; flagged: boolean };
-type ScoreResult = { score: number; feedback: string; flagged: boolean; responseHash: string };
-```
-
-- **Person 1 → others:** ABI + addresses in `shared/abi/` and `shared/addresses.json`. Until deployed, a local Anvil deployment.
-- **Person 2 → Person 3:** the `ai/pose` library and the `/score` API spec. Until ready, `/score` returns a random 70-95 with fixed feedback.
-- **Person 3 → Person 1:** the relayer request shape (`{ action, challengeId, entryId, nullifierHash, proof }`).
+Everyone builds against `shared/` and the mocks in `shared/mocks.ts` until the real parts are ready.
 
 ## 8. Timeline (about 36 hours)
 
-| When | Person 1 (contracts) | Person 2 (AI) | Person 3 (app) |
+| Hours | Abhimanyu (contracts) | Aagneye (AI) | Atul (app) |
 |---|---|---|---|
-| Hours 0-2 | Together: agree on `shared/`, set up the repo, get testnet USDC, World ID app ID, 0G access | | |
-| Hours 2-10 | Contracts + tests | MediaPipe + similarity scoring | App shell, camera, skeleton overlay, World ID |
-| Hours 10-18 | Deploy to Arc, relayer | 0G scoring, moderation, remix check | All screens with mocks |
-| Hours 18-26 | Together: connect real contracts + real AI, fix bugs | | |
-| Hours 26-32 | Seed demo data, explorer links | Tune thresholds with real phone photos | Polish UI, QR code, slides |
-| Hours 32-36 | Rehearse the demo at least 5 times, record a backup video | | |
+| 0-2 | **Together:** read this plan, agree on `shared/`, install World App on every phone, Developer Portal app, Sepolia funds, 0G access | | |
+| 2-10 | Contracts + Foundry tests | MediaPipe + joint-angle scoring | Mini App template, walletAuth, **camera test inside World App**, IDKit |
+| 10-18 | Deploy to World Chain Sepolia, export ABIs | 0G scoring, moderation, remix check, oracle `postScore` | All screens on mocks, relayer route, sponsor page |
+| 18-26 | **Together:** connect real contracts and the real AI, fix bugs | | |
+| 26-32 | Seed demo data, explorer links | Tune thresholds with real phone photos | Polish UI, QR code, slides |
+| 32-36 | **Together:** rehearse the demo 5+ times, record a backup video | | |
 
 ## 9. Demo (90 seconds)
 
-1. Teammate A registers a signature pose. It's recorded onchain as an original.
-2. A sponsor creates a 100 USDC challenge for that pose.
-3. Teammate B recreates it live: the skeleton overlay shows **87% match** with 0G feedback.
-4. Three judges vote with World ID. A judge tries a second vote and it is **rejected**.
-5. Finalize: the creator's royalty and the top recreators' payouts appear, with Arc explorer links.
+1. Abhimanyu registers a signature pose in World App. It's recorded onchain as an original.
+2. A sponsor creates a 100 USDC challenge for that pose from the desktop page.
+3. Aagneye recreates it live: the skeleton overlay shows **87% match** with feedback from 0G.
+4. Three judges scan the QR code and vote with World ID. One tries to vote again and gets **"You already voted"**, rejected by the contract.
+5. Finalize: the creator's royalty and the winners' payouts appear, with World Chain explorer links.
 
 ## 10. Partner tracks
 
-- **World (IDKit):** one human, one entry and one vote per challenge, using nullifiers. The double-vote rejection is the failure path.
-- **0G:** the AI judge, with scoring, feedback and moderation. (Optional: store thumbnails on 0G Storage.)
-- **Arc:** USDC escrow pools and the automatic creator + winner split.
+- **World:** a full Mini App (MiniKit sign-in, usernames, wallet payouts) plus World ID for one entry and one vote per human. The double-vote rejection is the failure path.
+- **0G:** the AI judge, which does scoring, feedback and moderation. Optional: store thumbnails on 0G Storage.
 
-**Updated rating: 7.5/10.** The anti-farming fix (World ID for entries, not only votes) and the sponsor choosing the originator close the two biggest holes judges would find.
+We dropped Arc because Mini App transactions run on World Chain.
+
+## 11. After the hackathon
+
+- Verify World ID inside the contract, so nobody needs to trust our relayer.
+- Verifiable AI scoring.
+- Dance moves (sequences of poses), not only single poses.
+- Studio dashboard with campaign analytics.
+- Age checks and legal review per country.

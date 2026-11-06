@@ -16,6 +16,7 @@ export type Hex = `0x${string}`;
 export type Pose = {
   id: number;
   creator: Address;
+  creatorUsername: string | null; // World App username, shown instead of the address
   parentId: number | null; // set when the pose is a remix of an earlier one
   createdAt: number; // unix seconds
   poseHash: Hex; // keccak256 of the normalized keypoints JSON
@@ -38,6 +39,7 @@ export type Entry = {
   id: number;
   challengeId: number;
   entrant: Address;
+  entrantUsername: string | null;
   captureHash: Hex;
   score: number | null; // 0..100, null until the AI has scored it
   votes: number;
@@ -54,7 +56,7 @@ export type Payout = {
   txHash: Hex;
 };
 
-// ---- AI service (Person 2) ----
+// ---- AI service (Aagneye) ----
 
 export type ScoreRequest = {
   originalImage: string; // base64 JPEG (data URL)
@@ -80,21 +82,31 @@ export type CheckOriginalResult = {
   similarity: number; // 0..100 against the closest existing pose
 };
 
-// ---- World ID + relayer (Person 3 -> Person 1) ----
+// ---- World ID + relayer (Atul's /api/relay -> Abhimanyu's contracts) ----
 
-/** Proof fields as returned by IDKit. */
-export type WorldIdProof = {
-  merkle_root: string;
-  nullifier_hash: string;
-  proof: string;
-  verification_level: string;
-};
+/**
+ * The result object from IDKit's handleVerify. The server forwards it unchanged to
+ * POST https://developer.world.org/api/v4/verify/{RP_ID}, so we don't depend on its fields.
+ * The nullifier from the verified result is what the contract stores.
+ */
+export type IdKitResult = Record<string, unknown>;
 
 export type RelayRequest =
-  | { kind: "registerPose"; proof: WorldIdProof; poseHash: Hex; parentId: number | null; metadataURI: string }
-  | { kind: "submitEntry"; proof: WorldIdProof; challengeId: number; entrant: Address; captureHash: Hex }
-  | { kind: "vote"; proof: WorldIdProof; challengeId: number; entryId: number };
+  | { kind: "registerPose"; result: IdKitResult; poseHash: Hex; parentId: number | null; metadataURI: string }
+  | { kind: "submitEntry"; result: IdKitResult; challengeId: number; captureHash: Hex }
+  | { kind: "vote"; result: IdKitResult; challengeId: number; entryId: number };
+// The entrant / creator address comes from the walletAuth session on the server, never from the request body.
+
+export type RelayError =
+  | "NOT_SIGNED_IN"
+  | "INVALID_PROOF"
+  | "ALREADY_ENTERED"
+  | "ALREADY_VOTED"
+  | "SCORE_TOO_LOW"
+  | "CHALLENGE_CLOSED"
+  | "TOO_MANY_ENTRIES"
+  | "UNKNOWN";
 
 export type RelayResult =
   | { ok: true; txHash: Hex; id?: number }
-  | { ok: false; error: "ALREADY_VOTED" | "ALREADY_ENTERED" | "INVALID_PROOF" | "SCORE_TOO_LOW" | "CHALLENGE_CLOSED" | "UNKNOWN"; message: string };
+  | { ok: false; error: RelayError; message: string };

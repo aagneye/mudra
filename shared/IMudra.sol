@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// The onchain interface everyone builds against. Person 1 implements it in contracts/.
+// The onchain interface everyone builds against. Abhimanyu implements it in contracts/ on World Chain.
+// No owner, no upgrades, no admin withdraw (World Mini App smart contract rules).
 // The app reads the events to show the onchain trail, so keep event shapes stable.
 
 interface IPoseRegistry {
@@ -52,6 +53,9 @@ interface IChallengePool {
     error ChallengeStillOpen();
     error NotOracle();
     error NotRelayer();
+    error NotSponsor();
+    error TooManyEntries();
+    error NothingToReclaim();
 
     event ChallengeCreated(uint256 indexed challengeId, uint256 indexed poseId, address indexed sponsor, uint256 pool, uint64 deadline);
     event EntrySubmitted(uint256 indexed challengeId, uint256 indexed entryId, address indexed entrant, bytes32 captureHash);
@@ -59,13 +63,14 @@ interface IChallengePool {
     event Voted(uint256 indexed challengeId, uint256 indexed entryId, uint256 nullifierHash);
     event PaidOut(uint256 indexed challengeId, address indexed recipient, uint256 amount, uint8 rank); // rank 0 = creator royalty
     event Finalized(uint256 indexed challengeId);
+    event Reclaimed(uint256 indexed challengeId, address indexed sponsor, uint256 amount);
 
     /// Sponsor calls this after approving `pool` USDC to this contract.
     function createChallenge(uint256 poseId, uint256 pool, uint256 royaltyPerEntry, uint16 creatorCapBps, uint64 deadline)
         external
         returns (uint256 challengeId);
 
-    /// Relayer only. Reverts AlreadyEntered if the nullifier was used for this challenge.
+    /// Relayer only. Reverts AlreadyEntered if the nullifier was used for this challenge, TooManyEntries above 200.
     function submitEntry(uint256 challengeId, address entrant, uint256 nullifierHash, bytes32 captureHash)
         external
         returns (uint256 entryId);
@@ -73,11 +78,14 @@ interface IChallengePool {
     /// Oracle (AI backend) only.
     function postScore(uint256 entryId, uint8 score, bool flagged, bytes32 responseHash) external;
 
-    /// Relayer only. Reverts AlreadyVoted on a reused nullifier, ScoreTooLow under MIN_VALID_SCORE.
+    /// Relayer only. Reverts AlreadyVoted on a reused nullifier, ScoreTooLow if unscored, under 60 or flagged.
     function vote(uint256 challengeId, uint256 entryId, uint256 nullifierHash) external;
 
     /// Anyone, after the deadline. Pays the creator royalty and the top 3.
     function finalize(uint256 challengeId) external;
+
+    /// Sponsor only, after finalize, only if there were no valid entries. There is no other way to move deposited USDC.
+    function reclaim(uint256 challengeId) external;
 
     function getChallenge(uint256 challengeId) external view returns (Challenge memory);
     function getEntry(uint256 entryId) external view returns (Entry memory);

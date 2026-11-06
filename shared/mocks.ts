@@ -24,7 +24,7 @@ export async function mockCheckOriginal(): Promise<CheckOriginalResult> {
 const usedNullifiers = new Set<string>();
 
 export async function mockRelay(req: RelayRequest): Promise<RelayResult> {
-  const key = `${req.kind}:${"challengeId" in req ? req.challengeId : ""}:${req.proof.nullifier_hash}`;
+  const key = `${req.kind}:${"challengeId" in req ? req.challengeId : ""}:${String(req.result.nullifier ?? "mock-human")}`;
   if (req.kind !== "registerPose" && usedNullifiers.has(key)) {
     return req.kind === "vote"
       ? { ok: false, error: "ALREADY_VOTED", message: "This human already voted in this challenge." }
@@ -38,6 +38,7 @@ export const mockPoses: Pose[] = [
   {
     id: 1,
     creator: "0x1111111111111111111111111111111111111111",
+    creatorUsername: "abhimanyu",
     parentId: null,
     createdAt: 1_762_400_000,
     poseHash: fakeHash(1),
@@ -60,7 +61,7 @@ export const mockChallenges: Challenge[] = [
 ];
 
 export const mockEntries: Entry[] = [
-  { id: 1, challengeId: 1, entrant: "0x3333333333333333333333333333333333333333", captureHash: fakeHash(11), score: 87, votes: 3, thumbnailUrl: "/mock/entry-1.jpg", flagged: false },
-  { id: 2, challengeId: 1, entrant: "0x4444444444444444444444444444444444444444", captureHash: fakeHash(12), score: 74, votes: 1, thumbnailUrl: "/mock/entry-2.jpg", flagged: false },
-  { id: 3, challengeId: 1, entrant: "0x5555555555555555555555555555555555555555", captureHash: fakeHash(13), score: 52, votes: 0, thumbnailUrl: "/mock/entry-3.jpg", flagged: false },
+  { id: 1, challengeId: 1, entrant: "0x3333333333333333333333333333333333333333", entrantUsername: "aagneye", captureHash: fakeHash(11), score: 87, votes: 3, thumbnailUrl: "/mock/entry-1.jpg", flagged: false },
+  { id: 2, challengeId: 1, entrant: "0x4444444444444444444444444444444444444444", entrantUsername: "atul", captureHash: fakeHash(12), score: 74, votes: 1, thumbnailUrl: "/mock/entry-2.jpg", flagged: false },
+  { id: 3, challengeId: 1, entrant: "0x5555555555555555555555555555555555555555", entrantUsername: "judge1", captureHash: fakeHash(13), score: 52, votes: 0, thumbnailUrl: "/mock/entry-3.jpg", flagged: false },
 ];
