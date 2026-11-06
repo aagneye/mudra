@@ -1,0 +1,15 @@
+{
+  "_note": "Person 1 fills this after deploying. chainId 31337 = local Anvil.",
+  "31337": {
+    "usdc": "",
+    "poseRegistry": "",
+    "challengePool": ""
+  },
+  "arcTestnet": {
+    "chainId": null,
+    "usdc": "",
+    "poseRegistry": "",
+    "challengePool": "",
+    "explorer": ""
+  }
+}
